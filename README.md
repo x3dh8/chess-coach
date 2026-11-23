@@ -2,7 +2,7 @@
 
 A personal chess training app that runs in the browser and installs on iPhone as a home-screen app.
 
-- 23 opponents who are people: faces that react to the game, ages, countries, bios, their own openings and chat, plus Stockfish at full strength
+- 43 opponents who are people: faces that react to the game, ages, countries, bios, their own openings and chat, plus Stockfish at full strength
 - Play with a Coach (Sam, Maya or Rex) who stops you on blunders and explains them
 - Full Game Review powered by Stockfish 18: accuracy, move labels, eval graph, retry mistakes
 - 542 puzzles, Puzzle Rush, Daily Puzzle, and puzzles made from your own mistakes

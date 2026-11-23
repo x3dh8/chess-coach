@@ -6,7 +6,7 @@ import { PV, hanging } from './analysis.js';
 import { PEOPLE, COACH_PEOPLE, VOICES, LEVELS } from './people.js';
 export { LEVELS };
 
-export const BOTS = PEOPLE.map(p => ({ ...p, color: p.face.bg, tag: p.bio }));
+export const BOTS = PEOPLE.map(p => ({ ...p, color: p.face.bg, tag: p.bio })).sort((a, b) => a.rating - b.rating);
 // Coaches play like a bot of the level you pick, but talk you through the game.
 export const COACHES = COACH_PEOPLE.map(c => ({ ...c, color: c.face.bg }));
 // Opponents from older versions of the app, so old games in your history still show a name.

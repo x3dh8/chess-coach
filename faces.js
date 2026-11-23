@@ -22,10 +22,11 @@ const HAIR_FRONT = {
   side: 'M30,48 C27,25 42,16 55,19 C67,21 72,31 70,47 C68,39 65,34 61,30 C52,33 42,31 35,34 C32,38 31,42 30,48Z',
   spiky: 'M30,46 L28.5,30 L35,32 L35,19 L42,26 L46,15 L51,24 L57,15 L59,25 L66,19 L65,30 L71.5,29 L70,46 C67,37 63,33 58,32 C50,35 42,34 36,33 C33,37 31,41 30,46Z',
   buzz: 'M31,45 C30,27 40,21.5 50,21.5 C60,21.5 70,27 69,45 C67,36 63,31 50,30 C37,31 33,36 31,45Z',
-  slick: 'M30,45 C29,24 71,24 70,45 C68,34 62,28.5 50,28 C38,28.5 32,34 30,45Z',
+  slick: 'M30,45 C27,10 73,10 70,45 C68,34 62,28.5 50,28 C38,28.5 32,34 30,45Z',
   bangs: 'M30,48 C28,23 42,16 51,17 C61,17 72,24 70,48 C69,40 66,33 60,29 C55,33 46,36 37,36 C33,39 31,43 30,48Z',
-  fringe: 'M30,46 C28,21 72,21 70,46 C69.5,41 69,38 68,36.5 Q50,39 32,36.5 C31,38 30.5,41 30,46Z',
-  bun: 'M30,46 C28,24 72,24 70,46 C68,36 62,30 50,29 C38,30 32,36 30,46Z',
+  fringe: 'M30,46 C27,10 73,10 70,46 C69.5,41 69,38 68,36.5 Q50,39 32,36.5 C31,38 30.5,41 30,46Z',
+  bun: 'M30,46 C27,10 73,10 70,46 C68,36 62,30 50,29 C38,30 32,36 30,46Z',
+  ponytail: 'M30,46 C27,10 73,10 70,46 C68,36 62,30 50,29 C38,30 32,36 30,46Z',
   parted: 'M30,47 C28,24 41,17 50,18 C59,17 72,24 70,47 C68,38 63,31 52,28 L50,31 L48,28 C37,31 32,38 30,47Z',
   receding: 'M30.5,49 C30,40 31,33 34,29 C37,33 37,40 36,46Z M69.5,49 C70,40 69,33 66,29 C63,33 63,40 64,46Z M40,27 C45,24 55,24 60,27 C55,28 45,28 40,27Z',
   bald: 'M30.5,51 C30,45 31,41 33,38 C35,42 35.5,46 35,50Z M69.5,51 C70,45 69,41 67,38 C65,42 64.5,46 65,50Z',
@@ -63,6 +64,7 @@ export function faceSVG(f, mood = 'neutral') {
   // back hair
   const back = f.back || (['long', 'bob', 'wavy', 'afro', 'ponytail'].includes(f.hair) ? f.hair : null);
   if (back && HAIR_BACK[back]) s += `<path d="${HAIR_BACK[back]}" fill="${shade(hc, -.12)}"/>`;
+  if (f.hair === 'dreads') for (let x = 26; x <= 74; x += 5.3) s += `<rect x="${(x - 2.6).toFixed(1)}" y="30" width="5.2" height="${x < 36 || x > 64 ? 50 : 26}" rx="2.6" fill="${shade(hc, x % 2 ? -.1 : -.2)}"/>`;
   if (f.hair === 'bun') s += `<circle cx="50" cy="16.5" r="8.5" fill="${hc}"/><circle cx="47" cy="14" r="3" fill="${shade(hc, .15)}" opacity=".5"/>`;
   // body
   s += `<path d="M13,100 C14,80 28,73 50,73 C72,73 86,80 87,100Z" fill="${shirt}"/>`;
@@ -109,8 +111,9 @@ export function faceSVG(f, mood = 'neutral') {
   // front hair
   if (f.hair === 'curly') s += curls(hc, 20, 10, 5.8);
   else if (f.hair === 'afro') s += curls(hc, 17, 11, 6.4);
+  else if (f.hair === 'dreads') { s += `<path d="${HAIR_FRONT.short}" fill="${hc}"/>`; for (let x = 33; x <= 67; x += 5.6) s += `<rect x="${(x - 2.5).toFixed(1)}" y="${22 + Math.abs(50 - x) * .12}" width="5" height="${15 - Math.abs(50 - x) * .12}" rx="2.5" fill="${shade(hc, .1)}"/>` }
   else if (HAIR_FRONT[f.hair]) s += `<path d="${HAIR_FRONT[f.hair]}" fill="${hc}"${f.hair === 'buzz' ? ' opacity=".8"' : ''}/>`;
-  if (['short', 'side', 'parted', 'slick', 'bangs', 'bun', 'fringe'].includes(f.hair)) s += `<path d="${f.hair === 'parted' ? 'M50,20 Q51,26 51,30' : 'M40,23 Q50,19 60,22'}" stroke="${shade(hc, .25)}" stroke-width="1.3" fill="none" opacity=".45" stroke-linecap="round"/>`;
+  if (['short', 'side', 'parted', 'slick', 'bangs', 'bun', 'fringe', 'ponytail'].includes(f.hair)) s += `<path d="${f.hair === 'parted' ? 'M50,20 Q51,26 51,30' : 'M40,23 Q50,19 60,22'}" stroke="${shade(hc, .25)}" stroke-width="1.3" fill="none" opacity=".45" stroke-linecap="round"/>`;
   // glasses
   if (f.glasses) {
     const gc = f.glassesC || '#1d1d1f';
@@ -122,6 +125,7 @@ export function faceSVG(f, mood = 'neutral') {
   const hatc = f.hatc || '#c0392b';
   if (f.hat === 'beanie') s += `<path d="M28.5,40 C27,16 73,16 71.5,40Z" fill="${hatc}"/><rect x="27.5" y="35.5" width="45" height="8" rx="3.5" fill="${shade(hatc, -.18)}"/><circle cx="50" cy="15" r="4.5" fill="${shade(hatc, .3)}"/>`;
   if (f.hat === 'cap') s += `<path d="M29.5,40 C29,18 71,18 70.5,40Z" fill="${hatc}"/><path d="M29,39 Q50,34 71,39 Q58,46 34,43Z" fill="${shade(hatc, -.25)}"/><circle cx="50" cy="20" r="1.6" fill="${shade(hatc, -.3)}"/>`;
+  if (f.hat === 'headphones') s += `<path d="M28,48 C26,16 74,16 72,48" stroke="#2d3436" stroke-width="3.4" fill="none"/><rect x="23.5" y="41" width="9" height="15" rx="4" fill="${hatc}"/><rect x="67.5" y="41" width="9" height="15" rx="4" fill="${hatc}"/>`;
   if (f.hat === 'band') s += `<path d="M30,35 Q50,27 70,35" stroke="${hatc}" stroke-width="3.6" fill="none" stroke-linecap="round"/>`;
   if (f.hat === 'scarf') s += `<path d="M27,47 C24,16 76,16 73,47 C74,60 70,70 66,76 L34,76 C30,70 26,60 27,47Z M33,46 C33,32 40,26 50,26 C60,26 67,32 67,46 C67,58 61,69 50,69 C39,69 33,58 33,46Z" fill="${hatc}" fill-rule="evenodd"/><path d="M34,76 Q50,82 66,76 L70,92 Q50,98 30,92Z" fill="${hatc}"/>`;
   return s + '</g></svg>';
