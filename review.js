@@ -5,7 +5,8 @@ import * as A from './analysis.js';
 import { openingName } from './openings.js';
 import * as snd from './sound.js';
 
-const COACH = { name: 'Coach', emoji: '🎓', color: '#8e44ad' };
+import { COACH_PEOPLE } from './people.js';
+const COACH = { name: 'Coach Maya', face: COACH_PEOPLE[1].face };
 const RES = (g) => g.result === '1/2-1/2' ? ['d', 'Draw'] : (g.result === '1-0') === (g.my === 'w') ? ['w', 'Win'] : ['l', 'Loss'];
 const when = t => { const d = new Date(t), now = new Date(); return d.toDateString() === now.toDateString() ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : d.toLocaleDateString([], { month: 'short', day: 'numeric' }) };
 
@@ -77,7 +78,7 @@ export function reviewView(ctx, id) {
   }
   function bars() {
     const s = gd.states[cur], oc = G.my === 'w' ? 'b' : 'w';
-    $('#topBar').innerHTML = `${av(opp)}<div class="nm"><b>${esc(opp.name)}</b><span class="rt">(${G.oppRating})</span><div class="caps">${capturedHTML(s, oc)}</div></div>`;
+    $('#topBar').innerHTML = `${av(opp)}<div class="nm"><b>${esc(opp.name)}</b>${opp.flag ? ` <span class="flag">${opp.flag}</span>` : ''}<span class="rt">(${G.oppRating})</span><div class="caps">${capturedHTML(s, oc)}</div></div>`;
     $('#botBar').innerHTML = `${av(ME)}<div class="nm"><b>You</b><div class="caps">${capturedHTML(s, G.my)}</div></div>`;
   }
   function evbar() {

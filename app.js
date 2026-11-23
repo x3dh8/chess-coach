@@ -3,7 +3,8 @@ import * as R from './rules.js';
 import { createBoard } from './board.js';
 import { pieceSVG, SETS } from './pieces.js';
 import { analyse, clearQueue } from './engine.js';
-import { BOTS, COACHES, COACH_LINES, botMove, pick } from './bots.js';
+import { BOTS, COACHES, COACH_LINES, LEGACY, LEVELS, STYLE_NAMES, botMove, pick, line, moodFor, levelOf } from './bots.js';
+import { faceSVG } from './faces.js';
 import * as A from './analysis.js';
 import { openingName } from './openings.js';
 import * as snd from './sound.js';
@@ -30,8 +31,8 @@ export function modal(html, bind) {
   const close = () => o.remove(); o.addEventListener('click', e => { if (e.target === o) close() });
   bind && bind(o, close); return close;
 }
-export const botById = id => BOTS.find(b => b.id === id) || COACHES.find(c => c.id === id);
-export const av = (who, cls = '') => `<span class="av ${cls}" style="background:${who.color}">${who.emoji}</span>`;
+export const botById = id => BOTS.find(b => b.id === id) || COACHES.find(c => c.id === id) || LEGACY.find(c => c.id === id);
+export const av = (who, cls = '', mood) => who.face ? `<span class="av pf ${cls}">${faceSVG(who.face, mood)}</span>` : `<span class="av ${cls}" style="background:${who.color}">${who.emoji}</span>`;
 export const ME = { name: 'You', emoji: '😎', color: '#5d8c32' };
 const fmtClock = ms => { ms = Math.max(0, ms); if (ms < 20000) return (ms / 1000).toFixed(1); const s = Math.ceil(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` };
 export function gameData(moves) { // states, sans, moves from a list of UCI moves
@@ -68,8 +69,8 @@ function home() {
     <div class="hero"><span class="me">${ME.emoji}</span><div><b>You</b><div class="rt"><span>♟️ ${D.rating}</span><span>🧩 ${D.puzRating}</span><span>🎮 ${D.games.length} games</span></div></div></div>
     <div class="menu">
       ${cur ? `<button class="mi big" data-go="game"><span class="ic">▶️</span><div><b>Continue your game</b><span>vs ${esc(bot ? bot.name : 'bot')} · move ${Math.floor(cur.moves.length / 2) + 1}</span></div></button>` : ''}
-      <button class="mi ${cur ? '' : 'big'}" data-go="bots"><span class="ic">🤖</span><div><b>Play Bots</b><span>${BOTS.length} opponents from 250 to 3200</span></div></button>
-      <button class="mi" data-go="coach"><span class="ic">🎓</span><div><b>Play with a Coach</b><span>They explain every move and help you get better</span></div></button>
+      <button class="mi ${cur ? '' : 'big'}" data-go="bots"><span class="ic trio">${['diego', 'sofia', 'kofi'].map(id => av(botById(id), '', 'smile')).join('')}</span><div><b>Play Bots</b><span>${BOTS.length - 1} people from 250 to 2850, plus Stockfish</span></div></button>
+      <button class="mi" data-go="coach"><span class="ic">${av(COACHES[0], '', 'smile')}</span><div><b>Play with a Coach</b><span>They explain every move and help you get better</span></div></button>
       <button class="mi" data-go="puzzles" data-arg="rated"><span class="ic">🧩</span><div><b>Puzzles</b><span>Rated ${D.puzRating} · ${PUZZLES.length} puzzles</span></div></button>
       <button class="mi" data-go="puzzles" data-arg="rush"><span class="ic">⚡</span><div><b>Puzzle Rush</b><span>3 minutes, 3 strikes${D.rushBest ? ` · best ${D.rushBest}` : ''}</span></div></button>
       <button class="mi" data-go="puzzles" data-arg="daily"><span class="ic">📅</span><div><b>Daily Puzzle</b><span>${dailyDone ? 'Solved today ✅' : 'A new one every day'}</span></div></button>
@@ -82,16 +83,27 @@ function home() {
 
 function pickBot() {
   const P = D.pick;
-  const draw = () => {
-    const b = botById(P.bot) || BOTS[5];
+  if (!BOTS.find(x => x.id === P.bot)) P.bot = 'priya';
+  let greet = null;
+  const draw = (scroll) => {
+    const b = BOTS.find(x => x.id === P.bot), lv = levelOf(b.rating);
+    const hi = greet || (greet = line(b, 'hi'));
     app.innerHTML = `${top('Play Bots')}<div class="page">
-      <div class="bots">${BOTS.map(x => `<button class="bot ${x.id === b.id ? 'on' : ''}" data-bot="${x.id}">${av(x)}<b>${esc(x.name)}</b><span class="r">${x.rating}</span><small>${esc(x.tag)}</small></button>`).join('')}</div>
+      <div class="feat"><div class="fp">${av(b, 'xl', 'smile')}</div><div class="fi">
+        <div class="fn"><b>${esc(b.name)}</b> <span class="flag">${b.flag}</span></div>
+        <div class="fr">${b.rating}${b.engine ? '' : ` <span class="lvl lv-${lv[0]}">${lv[1]}</span>`}</div>
+        <div class="ff">${b.age ? `${b.age} · ` : ''}${esc(b.from)}</div>
+        <div class="fs">${esc(STYLE_NAMES[b.style] || '')}</div></div></div>
+      ${hi ? `<div class="speech">${esc(hi)}</div>` : ''}
+      <p class="fbio">${esc(b.bio)}</p>
+      ${LEVELS.map(([k, name]) => { const g = BOTS.filter(x => levelOf(x.rating)[0] === k); return g.length ? `<h3 class="lvh"><span class="lvl lv-${k}">${name}</span></h3><div class="ppl">${g.map(x => `<button class="pp ${x.id === b.id ? 'on' : ''}" data-bot="${x.id}">${av(x)}<b>${esc(x.name.replace('Grandma ', 'Gma '))}</b><span>${x.rating}</span></button>`).join('')}</div>` : '' }).join('')}
       <h2>I play</h2><div class="seg">${[['w', '♔ White'], ['r', '🎲 Random'], ['b', '♚ Black']].map(([k, l]) => `<button class="${P.color === k ? 'on' : ''}" data-col="${k}">${l}</button>`).join('')}</div>
       <h2>Clock</h2><div class="chips">${[['none', 'No clock'], ['1+0', '1 min'], ['3+0', '3 min'], ['3+2', '3 | 2'], ['5+0', '5 min'], ['10+0', '10 min'], ['15+10', '15 | 10'], ['30+0', '30 min']].map(([k, l]) => `<button class="chip ${P.tc === k ? 'on' : ''}" data-tc="${k}">${l}</button>`).join('')}</div>
-      <p class="dim" style="font-size:.82rem;margin-top:.8rem">Games count for your rating unless you use hints or take-backs. Bot ratings are approximate.</p>
-      <div class="startbar"><button class="btn wide" id="start">Play ${esc(b.name)} ${b.emoji}</button></div></div>`;
+      <p class="dim" style="font-size:.82rem;margin-top:.8rem">Games count for your rating unless you use hints or take-backs. Ratings are approximate.</p>
+      <div class="startbar"><button class="btn wide" id="start">Play ${esc(b.name)}</button></div></div>`;
     bindGo();
-    app.querySelectorAll('[data-bot]').forEach(e => e.onclick = () => { P.bot = e.dataset.bot; save(); draw() });
+    if (scroll) window.scrollTo({ top: 0, behavior: 'smooth' });
+    app.querySelectorAll('[data-bot]').forEach(e => e.onclick = () => { if (P.bot === e.dataset.bot) return; P.bot = e.dataset.bot; greet = null; save(); draw(true) });
     app.querySelectorAll('[data-col]').forEach(e => e.onclick = () => { P.color = e.dataset.col; save(); draw() });
     app.querySelectorAll('[data-tc]').forEach(e => e.onclick = () => { P.tc = e.dataset.tc; save(); draw() });
     $('#start').onclick = () => startGame({ mode: 'bot', oppId: b.id, oppRating: b.rating, color: P.color, tc: P.tc });
@@ -131,11 +143,14 @@ function gameView() {
   let gd = gameData(G.moves), board, alive = true, thinking = false, clockT = null, turnStart = Date.now(), lastTick = 0;
   let viewPly = null; // null = live position; a number = looking back at an earlier move
   let say = null;     // { who, text, label, acts:[[id,label]] }
+  let mood = 'neutral', moodT = null; // the opponent's face
+  const setMood = (m, ms) => { clearTimeout(moodT); mood = m; refreshFace(); if (ms) moodT = setTimeout(() => { mood = moodFor(opp, G._botEval); refreshFace() }, ms) };
+  const refreshFace = () => { const a = $('#topBar .av'), b = $('#say .bubble.op .av'); const h = opp.face ? faceSVG(opp.face, thinking && mood === 'neutral' ? 'think' : mood) : null; if (h) { if (a) a.innerHTML = h; if (b) b.innerHTML = h } const t = $('#topBar .thk'); if (t) t.hidden = !thinking };
   let hintStep = 0, hintUci = null, paused = false;
   const S = () => gd.states[gd.states.length - 1];
   const over = () => !!G.result;
   const myTurn = () => !over() && S().turn === G.my;
-  app.innerHTML = `${top(coach ? `🎓 ${esc(opp.name)}` : `${opp.emoji} vs ${esc(opp.name)}`, 'home', `<button class="iconbtn" id="flipB" aria-label="Flip board">⇅</button>`)}
+  app.innerHTML = `${top(coach ? `🎓 ${esc(opp.name)}` : `vs ${esc(opp.name)} ${opp.flag || opp.emoji || ''}`, 'home', `<button class="iconbtn" id="flipB" aria-label="Flip board">⇅</button>`)}
     <div class="game"><div class="gcol"><div class="pbar" id="topBar"></div><div class="gboard"><div id="bd"></div></div><div class="pbar" id="botBar"></div></div>
     <div class="side"><div id="say"></div><div class="opening" id="open"></div><div class="moves" id="mv"></div><div class="ctrl" id="ctrl"></div><div class="nav" id="nav"></div></div></div>`;
   bindGo();
@@ -145,11 +160,11 @@ function gameView() {
   // ----- drawing -----
   function bars() {
     const s = viewPly == null ? S() : gd.states[viewPly], oppCol = R.other(G.my);
-    const bar = (who, col, rating) => {
+    const bar = (who, col, rating, isOpp) => {
       const run = !over() && S().turn === col && G.moves.length >= (col === 'w' ? 0 : 1) && G.tc, ms = G.clock ? G.clock[col] - (run && G.moves.length >= 2 ? Date.now() - turnStart : 0) : 0;
-      return `${av(who)}<div class="nm"><b>${esc(who.name)}</b><span class="rt">${rating ? `(${rating})` : ''}</span><div class="caps">${capturedHTML(s, col)}</div></div>${G.tc ? `<div class="clock ${run ? 'run' : ''} ${ms < 20000 ? 'low' : ''}" data-clk="${col}">${fmtClock(ms)}</div>` : ''}`;
+      return `${isOpp ? av(who, '', thinking && mood === 'neutral' ? 'think' : mood) : av(who)}<div class="nm"><b>${esc(who.name)}</b>${isOpp && who.flag ? ` <span class="flag">${who.flag}</span>` : ''}<span class="rt">${rating ? `(${rating})` : ''}</span>${isOpp ? `<span class="thk" ${thinking ? '' : 'hidden'}><i></i><i></i><i></i></span>` : ''}<div class="caps">${capturedHTML(s, col)}</div></div>${G.tc ? `<div class="clock ${run ? 'run' : ''} ${ms < 20000 ? 'low' : ''}" data-clk="${col}">${fmtClock(ms)}</div>` : ''}`;
     };
-    $('#topBar').innerHTML = bar(opp, oppCol, G.oppRating);
+    $('#topBar').innerHTML = bar(opp, oppCol, G.oppRating, true);
     $('#botBar').innerHTML = bar(ME, G.my, coach ? null : D.rating);
   }
   function moveList() {
@@ -166,7 +181,7 @@ function gameView() {
   function bubble() {
     const el = $('#say'); if (!say) { el.innerHTML = ''; return }
     const w = say.who === 'hint' ? { emoji: '💡', color: '#5c8bb0' } : opp, L = say.label && A.LABELS[say.label];
-    el.innerHTML = `<div class="bubble">${av(w)}<div class="txt">${L ? `<b class="lbl" style="color:${L.c}">${L.g} ${L.n}</b><br>` : ''}${say.text}${say.acts ? `<div class="acts">${say.acts.map(([id, l, cls]) => `<button class="btn sm ${cls || 'sec'}" data-act="${id}">${l}</button>`).join('')}</div>` : ''}</div></div>`;
+    el.innerHTML = `<div class="bubble ${say.who === 'hint' ? '' : 'op'}">${say.who === 'hint' ? av(w) : av(w, '', mood)}<div class="txt">${L ? `<b class="lbl" style="color:${L.c}">${L.g} ${L.n}</b><br>` : ''}${say.text}${say.acts ? `<div class="acts">${say.acts.map(([id, l, cls]) => `<button class="btn sm ${cls || 'sec'}" data-act="${id}">${l}</button>`).join('')}</div>` : ''}</div></div>`;
     el.querySelectorAll('[data-act]').forEach(b => b.onclick = () => act(b.dataset.act));
   }
   function controls() {
@@ -212,27 +227,55 @@ function gameView() {
   }
   async function botTurn() {
     if (over() || S().turn === G.my || thinking) return;
-    thinking = true; controls();
-    const ply = G.moves.length, t0 = Date.now(), s = S();
+    thinking = true; controls(); refreshFace();
+    const ply = G.moves.length, t0 = Date.now(), s = S(), L = R.legalMoves(s);
     let r = null;
     try { r = await botMove(opp.rating ? opp : { ...opp, style: 'solid', rep: [] }, s, gd.sans, G.oppRating) } catch (e) { console.warn(e) }
-    if (!alive || G !== D.cur || G.moves.length !== ply || over()) { thinking = false; return }
-    // think for a believable amount of time
-    const want = G.tc ? Math.min(2500, 250 + Math.random() * G.tc.base / 400) : 450 + Math.random() * 500;
+    if (!alive || G !== D.cur || G.moves.length !== ply || over()) { thinking = false; refreshFace(); return }
+    const m = r && R.uciToMove(s, r.uci);
+    // think like a person: quick with book moves and recaptures, longer when it's complicated
+    const last = gd.moves[gd.moves.length - 1], recapture = m && last && last.captured && m.to === last.to;
+    let want;
+    if (r && r.book) want = 300 + Math.random() * 700;
+    else if (L.length === 1 || recapture) want = 250 + Math.random() * 500;
+    else {
+      const base = G.oppRating < 800 ? 600 : G.oppRating < 1500 ? 900 : 1200, busy = Math.min(1.6, .6 + L.length / 40) * (m && m.captured ? .8 : 1);
+      want = base * busy * (.5 + Math.random()) + (Math.random() < .12 ? 1200 + Math.random() * 1800 : 0);
+      if (G.tc) { const left = G.clock[R.other(G.my)]; want = Math.min(want * (G.tc.base >= 600000 ? 1.4 : 1), left / 30 + G.tc.inc * .6) }
+    }
+    if (G.moves.length < 2) want = Math.min(want, 900);
     const wait = Math.max(0, want - (Date.now() - t0)); if (wait) await new Promise(res => setTimeout(res, wait));
-    if (!alive || G !== D.cur || G.moves.length !== ply || over()) { thinking = false; return }
-    const m = r && R.uciToMove(s, r.uci); thinking = false;
-    if (!m) { const L = R.legalMoves(s); if (L.length) apply(L[0]); return }
-    // bot chat
-    if (!coach && opp.say) {
-      if (m.captured && A.PV[m.captured.toLowerCase()] >= 3 && Math.random() < .5 && opp.say.take[0]) chat(pick(opp.say.take));
-      else if (r.eval != null) { const prev = G._botEval; G._botEval = r.eval; if (prev != null && prev < 150 && r.eval > 350 && Math.random() < .7) chat(pick(['Thanks for that!', 'Oh, a gift?', 'I\u2019ll take it!'])); else if (prev != null && prev > -150 && r.eval < -350 && Math.random() < .7) chat(pick(opp.say.good)) }
+    if (!alive || G !== D.cur || G.moves.length !== ply || over()) { thinking = false; refreshFace(); return }
+    thinking = false;
+    if (!m) { if (L.length) apply(L[0]); return }
+    // how it's going, and what they say about it
+    if (!coach && opp.voice) {
+      const prev = G._botEval, now = r.eval != null ? r.eval : prev;
+      // a real person gives up in a hopeless position
+      G._lost = now != null && now <= -900 ? (G._lost || 0) + 1 : 0;
+      if (G._lost >= 3 && G.oppRating >= 900 && G.moves.length > 24 && Math.random() < .45 && line(opp, 'resign')) {
+        chat(line(opp, 'resign')); setMood('sad'); finish(G.my === 'w' ? '1-0' : '0-1', 'resignation'); return;
+      }
+      let said = null, flash = null;
+      if (prev != null && now != null) {
+        if (prev < 150 && now > 350) { said = line(opp, 'gift'); flash = 'surprised' }
+        else if (prev > -150 && now < -350) { said = line(opp, G._slip ? 'oops' : 'good'); flash = G._slip ? 'surprised' : 'worried' }
+      }
+      G._botEval = now; G._slip = !!(r && r.slip);
+      const ns = R.makeMove(s, m), op = openingName([...gd.sans, R.toSAN(s, m, L)]), prevOp = openingName(gd.sans);
+      if (!said && m.captured && A.PV[m.captured.toLowerCase()] >= 3 && Math.random() < .5) said = line(opp, 'take');
+      if (!said && R.inCheck(ns, ns.turn) && Math.random() < .3) said = line(opp, 'check');
+      if (!said && op && (!prevOp || op.name !== prevOp.name) && G.moves.length >= 3 && G.moves.length < 14 && Math.random() < .3 && !['kid', 'grandma', 'engine', 'quiet'].includes(opp.voice))
+        said = pick([`Ah, the ${op.name}.`, `${op.name}. I know this one.`, `The ${op.name}! I like it.`]);
+      if (!said && now != null && Math.random() < .12) said = line(opp, now > 400 ? 'winning' : now < -400 ? 'losing' : '_');
+      if (said) chat(said);
+      if (flash) setMood(flash, 1600); else setMood(moodFor(opp, now));
     }
     apply(m);
     if (coach && !over()) coachAfterBot(m);
     // premove?
     if (!over() && board.hasPremove()) {
-      const p = board.takePremove(), L = R.legalMoves(S()), pm = L.filter(x => x.from === p.from && x.to === p.to);
+      const p = board.takePremove(), L2 = R.legalMoves(S()), pm = L2.filter(x => x.from === p.from && x.to === p.to);
       if (pm.length) setTimeout(() => onMyMove(pm.find(x => !x.promo || x.promo === (G.my === 'w' ? 'Q' : 'q')) || pm[0]), 60);
     }
     if (coach && !over()) prepCoach();
@@ -284,9 +327,9 @@ function gameView() {
     if (id === 'resign') { if (btn && !btn._sure) { btn._sure = 1; btn.innerHTML = '<i>🏳️</i>Sure?'; setTimeout(() => btn && (btn._sure = 0), 3000); return } finish(G.my === 'w' ? '0-1' : '1-0', 'resignation'); return }
     if (id === 'abort') { G.result = '*'; G.reason = 'aborted'; D.cur = null; save(true); go('home'); return }
     if (id === 'draw') {
-      if (G.moves.length < 20) { chat(opp.say ? 'Too early for a draw. Let’s play on!' : 'Let’s keep playing a bit.'); return }
+      if (G.moves.length < 20) { chat(opp.voice ? 'Too early for a draw. Let’s play on!' : 'Let’s keep playing a bit.'); return }
       const r = await analyse(R.toFEN(S()), { depth: 10, tag: 'draw' }), sc = r.lines[0] ? (S().turn === G.my ? -r.lines[0].cp : r.lines[0].cp) : 0;
-      if (sc <= 30) { chat('Okay, a draw it is. 🤝'); finish('1/2-1/2', 'agreement') } else chat(opp.say ? pick(['No thanks, I like my position.', 'I’ll play on.']) : 'No thanks.');
+      if (sc <= 30) { chat('Okay, a draw it is. 🤝'); finish('1/2-1/2', 'agreement') } else chat(opp.voice ? pick(['No thanks, I like my position.', 'I’ll play on.']) : 'No thanks.');
       return;
     }
     if (id === 'takeback') {
@@ -330,7 +373,8 @@ function gameView() {
     D.games.forEach((g, k) => { if (k >= 30 && g.ev) delete g.ev }); // keep storage small: old games keep their review summary
     save(true);
     snd.play(myScore === 1 ? 'win' : myScore === 0 ? 'lose' : 'draw');
-    if (opp.say && !coach) chat(pick(myScore === 1 ? opp.say.lose : myScore === 0 ? opp.say.win : ['Good game!']));
+    if (opp.voice && !coach && !(reason === 'resignation' && myScore === 1)) chat(line(opp, myScore === 1 ? 'lose' : myScore === 0 ? 'win' : 'draw') || 'Good game!');
+    if (opp.face && !coach) setMood(myScore === 1 ? 'sad' : myScore === 0 ? 'happy' : 'smile');
     setTimeout(() => {
       if (!alive) return;
       const why = { checkmate: 'by checkmate', resignation: 'by resignation', timeout: 'on time', stalemate: 'by stalemate', repetition: 'by repetition', 'insufficient material': 'insufficient material', '50-move rule': '50-move rule', agreement: 'by agreement' }[reason] || reason;
@@ -353,12 +397,13 @@ function gameView() {
   }, 100);
   // ----- start -----
   show(false);
-  if (!G.moves.length) say = coach ? { who: 'opp', text: esc(lines.hi[0]) } : opp.say ? { who: 'opp', text: esc(pick(opp.say.hi)) } : null;
+  if (!G.moves.length) say = coach ? { who: 'opp', text: esc(lines.hi[0]) } : opp.voice && line(opp, 'hi') ? { who: 'opp', text: esc(line(opp, 'hi')) } : null;
+  if (!coach && opp.voice) { mood = G._botEval != null ? moodFor(opp, G._botEval) : 'smile'; refreshFace() }
   bubble();
   if (!myTurn()) setTimeout(botTurn, 600); else if (coach) prepCoach();
   const onKey = e => { if (e.key === 'ArrowLeft') $('[data-nav="1"]').click(); if (e.key === 'ArrowRight') $('[data-nav="2"]').click() };
   addEventListener('keydown', onKey);
-  return () => { alive = false; clearInterval(clockT); removeEventListener('keydown', onKey); clearQueue('coach'); clearQueue('bot') };
+  return () => { alive = false; clearInterval(clockT); clearTimeout(moodT); removeEventListener('keydown', onKey); clearQueue('coach'); clearQueue('bot') };
 }
 
 /* ---------- settings ---------- */

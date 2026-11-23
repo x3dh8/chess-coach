@@ -3,57 +3,29 @@ import * as R from './rules.js';
 import { analyse } from './engine.js';
 import { PV, hanging } from './analysis.js';
 
-// style: aggressive | defensive | gambit | trader | pawns | knights | bishops | queen | king | solid | chaos | tactical | positional
-export const BOTS = [
-  { id: 'pip', name: 'Pip', emoji: '🐣', rating: 250, color: '#f6c445', style: 'chaos', tag: 'Just learned how the pieces move.', rep: ['e4 e5 Qh5', 'a4', 'h4'],
-    say: { hi: ['Hi!! Which one is the horsey?', 'I like the pointy hat piece!'], good: ['Ooh, nice!'], oops: ['Wait, can you do that?'], win: ['I WON?! 🎉'], lose: ['Good game! You are so good!'], take: ['Yoink!'] } },
-  { id: 'rusty', name: 'Rusty', emoji: '🤖', rating: 400, color: '#b0755b', style: 'aggressive', tag: 'Attacks everything. Thinks very little.', rep: ['e4 e5 Qh5 Nc6 Bc4'],
-    say: { hi: ['BEEP. ATTACK MODE ON.'], good: ['ERROR: DID NOT SEE THAT.'], oops: ['RECALCULATING...'], win: ['VICTORY.EXE'], lose: ['SHUTTING DOWN. GG.'], take: ['CAPTURED.'] } },
-  { id: 'daisy', name: 'Daisy', emoji: '🌼', rating: 550, color: '#e8a0c0', style: 'solid', tag: 'Plays it safe. Loves to castle early.', rep: ['e4 e5 Nf3 Nc6 Bc4 Bc5', 'd4 d5 e3'],
-    say: { hi: ['Hello! Let’s have a nice game.'], good: ['Oh, well played!'], oops: ['Oopsie.'], win: ['That was fun!'], lose: ['You played lovely.'], take: ['Sorry!'] } },
-  { id: 'brick', name: 'Brick', emoji: '🧱', rating: 700, color: '#a5533b', style: 'defensive', tag: 'Builds walls of pawns and waits.', rep: ['d4 d5 e3 Nf6 Bd3', 'e4 c6 d4 d5'],
-    say: { hi: ['You will not get through.'], good: ['A crack in the wall...'], oops: ['Hmm.'], win: ['The wall holds.'], lose: ['The wall has fallen.'], take: ['Mine.'] } },
-  { id: 'zip', name: 'Zip', emoji: '⚡', rating: 850, color: '#4fb3ff', style: 'aggressive', tag: 'Moves fast, attacks your king.', rep: ['e4 e5 f4', 'e4 e5 Nf3 Nc6 Bc4 Nf6 Ng5'],
-    say: { hi: ['Let’s go go go!'], good: ['Whoa, fast hands!'], oops: ['Too fast, too fast!'], win: ['Speed wins!'], lose: ['You out-zipped me.'], take: ['Zap!'] } },
-  { id: 'olive', name: 'Olive', emoji: '🫒', rating: 1000, color: '#7a8f3c', style: 'positional', tag: 'Slow plans, good pieces.', rep: ['d4 Nf6 c4 e6', 'c4 e5 Nc3'],
-    say: { hi: ['Patience is a weapon.'], good: ['A thoughtful move.'], oops: ['That was careless of me.'], win: ['Slow and steady.'], lose: ['Very nicely done.'], take: ['Thank you.'] } },
-  { id: 'gambito', name: 'Gambito', emoji: '🎩', rating: 1100, color: '#8e44ad', style: 'gambit', tag: 'Gives up pawns for a wild attack.', rep: ['e4 e5 f4', 'd4 d5 e4', 'e4 c5 d4 cxd4 c3', 'e4 e5 Nf3 Nc6 Bc4 Bc5 b4', 'e4 e5 d4 exd4 c3'],
-    say: { hi: ['A pawn? Take it. I insist.'], good: ['Bold! I like you.'], oops: ['A gambit too far...'], win: ['Fortune favors the bold!'], lose: ['Bravo! You survived my storm.'], take: ['Ha-ha!'] } },
-  { id: 'knightro', name: 'Knightro', emoji: '🐴', rating: 1200, color: '#5d6d7e', style: 'knights', tag: 'Loves knights. Hops everywhere.', rep: ['Nf3 Nf6 Nc3', 'e4 e5 Nf3 Nc6 Nc3 Nf6'],
-    say: { hi: ['Neigh! Ready to hop?'], good: ['Neigh-ice move.'], oops: ['Whoa there.'], win: ['Hoof-ray!'], lose: ['Good gallop.'], take: ['Clip-clop, gotcha.'] } },
-  { id: 'bishopbea', name: 'Bea', emoji: '🐝', rating: 1300, color: '#e0b100', style: 'bishops', tag: 'Long diagonal sniper.', rep: ['g3 d5 Bg2', 'b3 e5 Bb2', 'e4 g6 d4 Bg7'],
-    say: { hi: ['Bzzz. Watch the diagonals.'], good: ['Sharp sting!'], oops: ['Bzz... missed that.'], win: ['Sweet as honey.'], lose: ['You out-buzzed me.'], take: ['Sting!'] } },
-  { id: 'pawnstorm', name: 'Stormy', emoji: '🌩️', rating: 1400, color: '#4b6584', style: 'pawns', tag: 'Pushes pawns at your king.', rep: ['e4 c5 Nc3 Nc6 f4', 'd4 f5'],
-    say: { hi: ['A storm is coming.'], good: ['You weathered that.'], oops: ['The storm blew over.'], win: ['Thunder!'], lose: ['Clear skies for you.'], take: ['Crash!'] } },
-  { id: 'trader', name: 'Swap', emoji: '🔄', rating: 1500, color: '#16a085', style: 'trader', tag: 'Trades everything, wins endgames.', rep: ['e4 e5 Nf3 Nf6', 'd4 d5 c4 dxc4'],
-    say: { hi: ['Let’s simplify.'], good: ['Clean.'], oops: ['Bad trade.'], win: ['Endgames are my thing.'], lose: ['Fair trade.'], take: ['Trade?'] } },
-  { id: 'queenie', name: 'Queenie', emoji: '👑', rating: 1600, color: '#c0392b', style: 'queen', tag: 'Brings her queen out to play.', rep: ['e4 d5 exd5 Qxd5', 'e4 e5 Nf3 Nc6 Bc4 Nf6'],
-    say: { hi: ['My queen is ready.'], good: ['How royal of you.'], oops: ['Unbecoming.'], win: ['Long live the queen.'], lose: ['I bow to you.'], take: ['Off with its head!'] } },
-  { id: 'professor', name: 'Professor Hoot', emoji: '🦉', rating: 1700, color: '#795548', style: 'positional', tag: 'Plays by the book. Very classical.', rep: ['e4 e5 Nf3 Nc6 Bb5 a6 Ba4 Nf6 O-O Be7', 'd4 d5 c4 e6 Nc3 Nf6 Bg5'],
-    say: { hi: ['Shall we begin the lesson?'], good: ['Textbook!'], oops: ['Even owls make errors.'], win: ['Class dismissed.'], lose: ['Top marks!'], take: ['Hoo hoo.'] } },
-  { id: 'viper', name: 'Viper', emoji: '🐍', rating: 1800, color: '#27ae60', style: 'tactical', tag: 'Sets traps. Strikes fast.', rep: ['e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 g6', 'd4 Nf6 c4 c5 d5 b5'],
-    say: { hi: ['Ssss... watch your step.'], good: ['You dodged my fangs.'], oops: ['Hiss!'], win: ['Venom wins.'], lose: ['You charmed the snake.'], take: ['Bite.'] } },
-  { id: 'fortress', name: 'Fortress', emoji: '🏰', rating: 1900, color: '#7f8c8d', style: 'defensive', tag: 'Almost impossible to break.', rep: ['e4 c6 d4 d5 Nc3 dxe4 Nxe4 Bf5', 'd4 d5 c4 c6'],
-    say: { hi: ['Knock if you dare.'], good: ['A strong blow.'], oops: ['A gate was open.'], win: ['Unbreakable.'], lose: ['The fortress falls.'], take: ['Repelled.'] } },
-  { id: 'blaze', name: 'Blaze', emoji: '🔥', rating: 2000, color: '#e67e22', style: 'aggressive', tag: 'All-out attack every game.', rep: ['e4 e5 Nf3 Nc6 Bc4 Bc5 b4', 'e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 a6 Bg5'],
-    say: { hi: ['Let’s burn it down.'], good: ['Hot move!'], oops: ['Ouch, that burned me.'], win: ['Up in flames!'], lose: ['You put out my fire.'], take: ['Burn!'] } },
-  { id: 'frost', name: 'Frost', emoji: '❄️', rating: 2200, color: '#74b9ff', style: 'solid', tag: 'Cold, calm, accurate.', rep: ['d4 Nf6 c4 e6 Nf3 d5', 'Nf3 d5 g3'],
-    say: { hi: ['Stay cool.'], good: ['Ice cold.'], oops: ['A crack in the ice.'], win: ['Frozen.'], lose: ['You melted me.'], take: ['Chill.'] } },
-  { id: 'machine', name: 'The Machine', emoji: '🦾', rating: 2400, color: '#34495e', style: 'positional', tag: 'Grinds out tiny advantages.', rep: ['e4 e5 Nf3 Nc6 Bb5 Nf6', 'd4 Nf6 c4 e6 g3'],
-    say: { hi: ['Let’s play.'], good: ['Good move.'], oops: ['Inaccurate.'], win: ['GG.'], lose: ['Well played. Impressive.'], take: ['Noted.'] } },
-  { id: 'gm_ghost', name: 'Ghost GM', emoji: '👻', rating: 2600, color: '#95a5a6', style: 'tactical', tag: 'Grandmaster strength. Boo.', rep: ['e4 c5 Nf3 Nc6 Bb5', 'd4 d5 c4 e6 Nc3 Nf6'],
-    say: { hi: ['Boooo... let’s play.'], good: ['Spooky good.'], oops: ['I must be haunted.'], win: ['Boo-yah.'], lose: ['You busted the ghost!'], take: ['Gone!'] } },
-  { id: 'titan', name: 'Titan', emoji: '🗿', rating: 2850, color: '#5f4b8b', style: 'positional', tag: 'World-champion level.', rep: [],
-    say: { hi: ['...'], good: ['Hm.'], oops: ['...'], win: ['As expected.'], lose: ['Remarkable.'], take: ['.'] } },
-  { id: 'max', name: 'Stockfish Max', emoji: '🐟', rating: 3200, color: '#1e272e', style: 'max', tag: 'Full strength. Good luck.', rep: [],
-    say: { hi: ['Full power.'], good: ['Interesting.'], oops: [''], win: ['Checkmate is inevitable.'], lose: ['...how?'], take: [''] } },
-];
+import { PEOPLE, COACH_PEOPLE, VOICES, LEVELS } from './people.js';
+export { LEVELS };
+
+export const BOTS = PEOPLE.map(p => ({ ...p, color: p.face.bg, tag: p.bio }));
 // Coaches play like a bot of the level you pick, but talk you through the game.
-export const COACHES = [
-  { id: 'coach_sam', name: 'Coach Sam', emoji: '🧢', color: '#2e86de', tag: 'Friendly and patient. Great for learning basics.' },
-  { id: 'coach_maya', name: 'Coach Maya', emoji: '🎓', color: '#8e44ad', tag: 'Explains plans and ideas. Great for getting better.' },
-  { id: 'coach_rex', name: 'Coach Rex', emoji: '🦖', color: '#27ae60', tag: 'Tough love. Tells it like it is.' },
-];
+export const COACHES = COACH_PEOPLE.map(c => ({ ...c, color: c.face.bg }));
+// Opponents from older versions of the app, so old games in your history still show a name.
+export const LEGACY = [['pip', 'Pip', '🐣'], ['rusty', 'Rusty', '🤖'], ['daisy', 'Daisy', '🌼'], ['brick', 'Brick', '🧱'], ['zip', 'Zip', '⚡'], ['olive', 'Olive', '🫒'], ['gambito', 'Gambito', '🎩'], ['knightro', 'Knightro', '🐴'], ['bishopbea', 'Bea', '🐝'], ['pawnstorm', 'Stormy', '🌩️'], ['trader', 'Swap', '🔄'], ['queenie', 'Queenie', '👑'], ['professor', 'Professor Hoot', '🦉'], ['viper', 'Viper', '🐍'], ['fortress', 'Fortress', '🏰'], ['blaze', 'Blaze', '🔥'], ['frost', 'Frost', '❄️'], ['machine', 'The Machine', '🦾'], ['gm_ghost', 'Ghost GM', '👻'], ['titan', 'Titan', '🗿']].map(([id, name, emoji]) => ({ id, name, emoji, color: '#555', legacy: 1 }));
+export const STYLE_NAMES = { chaos: 'Unpredictable', queen: 'Queen lover', aggressive: 'Attacker', solid: 'Solid', positional: 'Positional', gambit: 'Gambit player', trader: 'Endgame grinder', bishops: 'Bishop sniper', pawns: 'Pawn stormer', tactical: 'Tactician', knights: 'Knight lover', defensive: 'Defender', max: 'Perfect play' };
+export const levelOf = r => { let l = LEVELS[0]; for (const x of LEVELS) if (r >= x[2]) l = x; return l };
+// A chat line: the person's own lines first, otherwise their voice's lines.
+export function line(bot, key) {
+  const own = bot.say && bot.say[key], v = (VOICES[bot.voice] || VOICES.nice)[key];
+  const pool = own && own.length && (!v || !v.length || Math.random() < .6) ? own : v;
+  return pool && pool.length ? pick(pool) : '';
+}
+// How they look right now, from how the game is going for them (eval in centipawns, their point of view).
+export function moodFor(bot, ev) {
+  if (ev == null) return 'neutral';
+  const cocky = ['cocky', 'grump', 'confident'].includes(bot.voice);
+  return ev >= 600 ? (cocky ? 'smug' : 'happy') : ev >= 180 ? (cocky ? 'smug' : 'smile') : ev > -180 ? 'neutral' : ev > -600 ? 'worried' : 'sad';
+}
+
 export const COACH_LINES = {
   coach_sam: { best: ['Great move!', 'Nice, that’s exactly what I’d play.', 'Perfect!', 'Yes! That’s the one.'], good: ['Good move.', 'Solid.', 'That works.'], oops: ['Hmm, let’s look at that again.', 'Careful there!', 'Ooh, wait a second.'], brilliant: ['WOW. That’s brilliant!', 'Incredible! A real sacrifice!'], great: ['Great find! That was the only good move.'], hi: ['Hi! I’m Sam. Play your moves, and I’ll help you along the way. Ask for a hint any time!'] },
   coach_maya: { best: ['Excellent, that fits the plan.', 'Strong. You found the engine move.', 'Precise.'], good: ['Reasonable.', 'Fine, though there was something sharper.'], oops: ['Let’s pause here.', 'Think about what changed.', 'Hold on, this has a problem.'], brilliant: ['Brilliant! You saw deeper than most players would.'], great: ['Great move! Every other move was worse.'], hi: ['I’m Maya. I’ll point out the ideas behind the moves, both yours and mine.'] },
@@ -101,21 +73,37 @@ export async function botMove(bot, s, sans, rating = bot.rating) {
   const L = R.legalMoves(s); if (!L.length) return null;
   const rep = repertoireMove(bot, s, sans); if (rep) return { uci: rep, book: true };
   const fen = R.toFEN(s);
-  if (bot.style === 'max' || rating >= 3000) { const r = await analyse(fen, { movetime: 1500, tag: 'bot' }); return { uci: r.best || R.moveToUci(L[0]) } }
-  if (rating >= 2000) { const r = await analyse(fen, { movetime: 900, elo: rating, tag: 'bot' }); return { uci: r.best || R.moveToUci(L[0]) } }
+  if (bot.style === 'max' || rating >= 3000) { const r = await analyse(fen, { movetime: 1500, tag: 'bot' }); return { uci: r.best || R.moveToUci(L[0]), eval: r.lines[0] ? ev(r.lines[0]) : null } }
+  if (rating >= 2000) { const r = await analyse(fen, { movetime: 900, elo: rating, tag: 'bot' }); return { uci: r.best || R.moveToUci(L[0]), eval: r.lines[0] ? ev(r.lines[0]) : null } }
   const p = params(rating);
-  if (Math.random() < p.random) { // a "human" slip: a random move that isn't a total disaster for weak bots
-    const safe = L.filter(m => !hanging(R.makeMove(s, m).board, s.turn, 5).length);
-    const pool = rating < 500 ? L : (safe.length ? safe : L);
-    return { uci: R.moveToUci(pool[Math.floor(Math.random() * pool.length)]) };
-  }
+  if (Math.random() < p.random) return { uci: R.moveToUci(humanSlip(s, L, rating)), slip: true };
   const r = await analyse(fen, { depth: p.depth, multipv: Math.min(p.multipv, L.length), tag: 'bot' });
   if (!r.lines.length) return { uci: r.best || R.moveToUci(L[0]) };
   const top = r.lines[0].cp;
   // never miss mate in 1 above beginner level
-  if (rating >= 600 && r.lines[0].mate === 1) return { uci: r.lines[0].uci };
+  if (rating >= 600 && r.lines[0].mate === 1) return { uci: r.lines[0].uci, eval: 9999 };
   const scored = r.lines.map(l => { const m = R.uciToMove(s, l.uci, L); return { l, w: Math.exp(-Math.max(0, top - Math.min(l.cp, top + 300) - (m ? styleBonus(bot.style, s, m) : 0)) / p.temp) } });
   let tot = scored.reduce((a, x) => a + x.w, 0), x = Math.random() * tot;
-  for (const sc of scored) { x -= sc.w; if (x <= 0) return { uci: sc.l.uci, eval: sc.l.cp } }
-  return { uci: r.lines[0].uci, eval: top };
+  for (const sc of scored) { x -= sc.w; if (x <= 0) return { uci: sc.l.uci, eval: ev(sc.l) } }
+  return { uci: r.lines[0].uci, eval: ev(r.lines[0]) };
+}
+
+const ev = l => l.mate != null ? (l.mate > 0 ? 9999 - l.mate : -9999 - l.mate) : l.cp;
+// The kind of mistake a real person makes: a move that looks good at a glance
+// (grabbing material, giving check, developing, going for the centre) without checking if it's safe.
+function humanSlip(s, L, rating) {
+  const ply = (s.full - 1) * 2 + (s.turn === 'b' ? 1 : 0), back = s.turn === 'w' ? 7 : 0;
+  const score = m => {
+    const t = m.piece.toLowerCase(), ns = R.makeMove(s, m), f = m.to & 7, r = m.to >> 3;
+    let v = Math.random() * (rating < 500 ? 60 : 30);
+    if (m.captured) v += PV[m.captured.toLowerCase()] * 14;
+    if (R.inCheck(ns, ns.turn)) v += rating < 700 ? 30 : 16;
+    if ('nb'.includes(t) && (m.from >> 3) === back && ply < 20) v += 14;
+    if (f >= 2 && f <= 5 && r >= 2 && r <= 5) v += 6;
+    if (t === 'q' && ply < 12) v += rating < 600 ? 14 : -4;
+    if (t === 'k' && !(m.flag && m.flag.startsWith('castle'))) v -= 18;
+    if (m.flag && m.flag.startsWith('castle')) v += 10;
+    return v;
+  };
+  return L.map(m => [m, score(m)]).sort((a, b) => b[1] - a[1])[0][0];
 }
