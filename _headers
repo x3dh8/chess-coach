@@ -1,0 +1,8 @@
+/*
+  X-Content-Type-Options: nosniff
+
+/sw.js
+  Cache-Control: no-cache
+
+/engine/*
+  Cache-Control: public, max-age=604800
