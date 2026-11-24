@@ -16,13 +16,13 @@ import { puzzleView, learnView } from './puzzles.js';
 
 /* ---------- saved data ---------- */
 const KEY = 'cxa1';
-const DEF = { set: { theme: 'green', pieces: 'classic', sound: true, coords: true, dots: true, anim: true, autoQ: false, premove: true, evalbar: false, voice: true, accents: true }, rating: 800, ratingHist: [], puzRating: 800, puzHist: [], games: [], cur: null, solved: {}, rushBest: 0, daily: {}, themeDone: {}, pick: { bot: 'olive', color: 'w', tc: 'none', coach: 'coach_sam', coachLevel: 800 } };
+const DEF = { set: { theme: 'green', pieces: 'classic', sound: true, coords: true, dots: true, anim: true, autoQ: false, premove: true, evalbar: false, voice: true, accents: true, engine: 'builtin', azKey: '', azRegion: '' }, rating: 800, ratingHist: [], puzRating: 800, puzHist: [], games: [], cur: null, solved: {}, rushBest: 0, daily: {}, themeDone: {}, pick: { bot: 'olive', color: 'w', tc: 'none', coach: 'coach_sam', coachLevel: 800 } };
 export let D = (() => { try { const d = JSON.parse(localStorage.getItem(KEY)); return d ? { ...DEF, ...d, set: { ...DEF.set, ...d.set }, pick: { ...DEF.pick, ...d.pick } } : structuredClone(DEF) } catch (e) { return structuredClone(DEF) } })();
 let saveT = null;
 export const save = (now) => { clearTimeout(saveT); const f = () => { try { localStorage.setItem(KEY, JSON.stringify(D)) } catch (e) { toast('Storage is full') } }; now ? f() : (saveT = setTimeout(f, 300)) };
 addEventListener('pagehide', () => save(true));
 snd.setSound(D.set.sound);
-voice.setVoice({ on: D.set.voice, accents: D.set.accents });
+voice.setVoice({ on: D.set.voice, accents: D.set.accents, engine: D.set.engine, azKey: D.set.azKey, azRegion: D.set.azRegion });
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => { });
 
 /* ---------- helpers ---------- */
@@ -187,7 +187,7 @@ function gameView() {
     const w = say.who === 'hint' ? { emoji: '💡', color: '#5c8bb0' } : opp, L = say.label && A.LABELS[say.label];
     el.innerHTML = `<div class="bubble ${say.who === 'hint' ? '' : 'op'}">${say.who === 'hint' ? av(w) : av(w, '', mood)}<div class="txt">${say.pre || ''}${L ? `<b class="lbl" style="color:${L.c}">${L.g} ${L.n}</b><br>` : ''}${say.text}${say.acts ? `<div class="acts">${say.acts.map(([id, l, cls]) => `<button class="btn sm ${cls || 'sec'}" data-act="${id}">${l}</button>`).join('')}</div>` : ''}</div></div>`;
     el.querySelectorAll('[data-act]').forEach(b => b.onclick = () => act(b.dataset.act));
-    if (say !== spoken) { spoken = say; if (!say.quiet) voice.say(say.speak || ((L && say.who === 'opp' && coach ? L.n + '. ' : '') + say.text), say.who === 'hint' ? null : opp, { interrupt: !say.queue }) }
+    if (say !== spoken) { spoken = say; if (!say.quiet) voice.say(say.speak || ((L && say.who === 'opp' && coach ? L.n + '. ' : '') + say.text), say.who === 'hint' ? null : opp, { interrupt: !say.queue, mood: say.who === 'hint' ? null : mood }) }
   }
   function controls() {
     const n = G.moves.length;
@@ -453,19 +453,36 @@ function settings() {
       </div>
       <h2>Voices</h2><div class="card" style="padding:.2rem .9rem">
         ${tog('voice', 'Voices', 'Opponents and coaches talk out loud')}${tog('accents', 'Accents', 'People sound like they’re from their country')}
-        <div class="set"><div><b>Test it</b><small>${voice.supported ? `${voice.count()} English voices on this device` : 'This browser can’t speak'}</small></div><button class="btn sm sec" id="vtest">🔊 Play</button></div>
-        <p class="mute" style="font-size:.8rem;margin:.2rem 0 .7rem">Free, built into your phone, and works offline. For much better voices on iPhone: <b>Settings → Accessibility → Spoken Content → Voices → English</b>, and download a few voices marked <b>Enhanced</b> or <b>Premium</b>. The app picks them up automatically.</p>
+        <div class="set"><div><b>Voice type</b></div></div>
+        <div class="seg" style="margin:-.3rem 0 .6rem">${[['builtin', '📱 Built-in'], ['azure', '✨ Natural (Azure)']].map(([k, l]) => `<button class="${(S.engine || 'builtin') === k ? 'on' : ''}" data-eng="${k}">${l}</button>`).join('')}</div>
+        ${S.engine === 'azure' ? (() => { const st = voice.azureStatus(), u = voice.usage(), pct = Math.min(100, u.chars / st.limit * 100); return `
+        <label class="fld"><span>Azure key</span><input id="azk" type="password" autocomplete="off" placeholder="Paste KEY 1 here" value="${esc(S.azKey || '')}"></label>
+        <label class="fld"><span>Region</span><input id="azr" autocomplete="off" placeholder="eastus" value="${esc(S.azRegion || '')}"></label>
+        <div style="display:flex;gap:.5rem;align-items:center;margin:.4rem 0"><button class="btn sm" id="azc">🔌 Connect</button><span class="mute" style="font-size:.82rem" id="azs">${st.ok ? `✅ Connected · ${st.voices} voices` : st.err ? `⚠️ ${esc(st.err)}` : 'Not connected yet'}</span></div>
+        <div class="mute" style="font-size:.8rem;margin-top:.4rem">This month: <b>${u.chars.toLocaleString()}</b> of 500,000 free characters</div><div class="pbarw"><i style="width:${pct}%"></i></div>
+        <p class="mute" style="font-size:.78rem;margin:.3rem 0 .4rem">Your key stays on this device only and isn’t included in backups. Lines that repeat are saved, so they’re free after the first time. If you’re offline or the month runs out, the built-in voices take over.</p>` })() : `<p class="mute" style="font-size:.8rem;margin:.2rem 0 .4rem">Free, built into your phone, and works offline. For better built-in voices on iPhone: <b>Settings → Accessibility → Spoken Content → Voices → English</b>, and download voices marked <b>Enhanced</b> or <b>Premium</b>.</p>`}
+        <div class="set"><div><b>Test it</b><small>Hear a random opponent</small></div><button class="btn sm sec" id="vtest">🔊 Play</button></div>
       </div>
       <h2>Your data</h2><div class="card"><p class="mute" style="margin:0 0 .6rem;font-size:.88rem">Everything is saved on this device. Make a backup now and then so you never lose your games and rating.</p>
         <div style="display:flex;gap:.5rem;flex-wrap:wrap"><button class="btn sm" id="exp">💾 Save backup</button><button class="btn sm sec" id="imp">📂 Load backup</button><button class="btn sm red" id="reset">Reset everything</button></div><input type="file" id="file" accept=".json" hidden></div></div>`;
     bindGo();
     app.querySelectorAll('[data-tog]').forEach(b => b.onclick = () => { S[b.dataset.tog] = !S[b.dataset.tog]; snd.setSound(S.sound); voice.setVoice({ on: S.voice, accents: S.accents }); save(); draw() });
+    app.querySelectorAll('[data-eng]').forEach(b => b.onclick = () => { S.engine = b.dataset.eng; voice.setVoice({ engine: S.engine }); save(); draw() });
+    const azSave = () => { S.azKey = $('#azk').value.trim(); S.azRegion = $('#azr').value.trim().toLowerCase().replace(/\s+/g, ''); voice.setVoice({ azKey: S.azKey, azRegion: S.azRegion }); save() };
+    if ($('#azk')) { $('#azk').onchange = azSave; $('#azr').onchange = azSave }
+    if ($('#azc')) $('#azc').onclick = async () => {
+      azSave(); const st = $('#azs');
+      if (!S.azKey || !S.azRegion) { st.textContent = '⚠️ Paste your key and region first'; return }
+      st.textContent = 'Connecting…';
+      try { const n = await voice.azureConnect(S.azKey, S.azRegion); st.textContent = `✅ Connected · ${n} voices`; toast('Natural voices are on ✅'); const p = botById('rosa'); voice.say(`Ciao! It's Grandma Rosa. Now I sound like a real person!`, p, { mood: 'happy' }) }
+      catch (e) { st.textContent = '⚠️ ' + e.message }
+    };
     if ($('#vtest')) $('#vtest').onclick = () => { const p = pick(BOTS.filter(b => !b.engine)); voice.say(`Hi, I'm ${p.name}${p.from ? ` from ${p.from.split(',').pop().trim()}` : ''}. ${line(p, 'hi')}`, p) };
     app.querySelectorAll('[data-th]').forEach(b => b.onclick = () => { S.theme = b.dataset.th; document.body.className = themeClass(); save(); draw() });
     app.querySelectorAll('[data-ps]').forEach(b => b.onclick = () => { S.pieces = b.dataset.ps; save(); draw() });
-    $('#exp').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(D)], { type: 'application/json' })); a.download = `chess-backup-${new Date().toISOString().slice(0, 10)}.json`; a.click() };
+    $('#exp').onclick = () => { const a = document.createElement('a'); const out = { ...D, set: { ...D.set, azKey: '' } }; a.href = URL.createObjectURL(new Blob([JSON.stringify(out)], { type: 'application/json' })); a.download = `chess-backup-${new Date().toISOString().slice(0, 10)}.json`; a.click() };
     $('#imp').onclick = () => $('#file').click();
-    $('#file').onchange = async e => { try { const d = JSON.parse(await e.target.files[0].text()); if (!d.set || !Array.isArray(d.games)) throw 0; Object.keys(D).forEach(k => delete D[k]); Object.assign(D, d); save(true); toast('Backup loaded ✅'); go('home') } catch (err) { toast('That file isn’t a chess backup') } };
+    $('#file').onchange = async e => { try { const d = JSON.parse(await e.target.files[0].text()); if (!d.set || !Array.isArray(d.games)) throw 0; const keep = { azKey: D.set.azKey, azRegion: D.set.azRegion }; Object.keys(D).forEach(k => delete D[k]); Object.assign(D, d); D.set = { ...D.set, azKey: keep.azKey || d.set.azKey || '', azRegion: d.set.azRegion || keep.azRegion }; save(true); toast('Backup loaded ✅'); go('home') } catch (err) { toast('That file isn’t a chess backup') } };
     $('#reset').onclick = e => { if (!e.target._sure) { e.target._sure = 1; e.target.textContent = 'Tap again: delete all'; return } localStorage.removeItem(KEY); location.reload() };
   };
   draw();
