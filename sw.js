@@ -1,7 +1,7 @@
 // Works offline: keeps a copy of the app and Stockfish on the phone.
-const V = 'chess-v4';
+const V = 'chess-v5';
 const BASE = new URL('./', self.location).pathname;
-const FILES = ['./', 'index.html', 'app.js', 'board.js', 'pieces.js', 'rules.js', 'book.js', 'engine.js', 'bots.js', 'people.js', 'faces.js', 'analysis.js', 'openings.js', 'sound.js', 'review.js', 'puzzles.js', 'puzzles-data.js', 'manifest.json', 'icon-180.png', 'icon-192.png', 'engine/stockfish-18-lite-single.js', 'engine/stockfish-18-lite-single.wasm'];
+const FILES = ['./', 'index.html', 'app.js', 'board.js', 'pieces.js', 'rules.js', 'book.js', 'engine.js', 'bots.js', 'people.js', 'faces.js', 'voice.js', 'themes.js', 'analysis.js', 'openings.js', 'sound.js', 'review.js', 'puzzles.js', 'puzzles-data.js', 'manifest.json', 'icon-180.png', 'icon-192.png', 'engine/stockfish-18-lite-single.js', 'engine/stockfish-18-lite-single.wasm'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(V).then(c => c.addAll(FILES)).then(() => self.skipWaiting())) });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V && k.startsWith('chess-')).map(k => caches.delete(k)))).then(() => self.clients.claim())) });
 // Network first (so updates show up), the saved copy when offline.

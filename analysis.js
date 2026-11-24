@@ -122,7 +122,10 @@ export function whatItDoes(s, m) {
   const myHang = hanging(s.board, s.turn), nowHang = hanging(ns.board, s.turn);
   if (myHang.length && nowHang.length < myHang.length) return `it saves your ${PNAME[s.board[myHang[0].sq].toLowerCase()]}`;
   const home = s.turn === 'w' ? 7 : 0;
+  if (t === 'n' && (m.from >> 3) === home && [0, 7].includes(m.to & 7)) return 'it develops the knight, though a knight on the edge of the board controls fewer squares';
   if ('nb'.includes(t) && (m.from >> 3) === home) return 'it develops a piece toward the center';
+  if (t === 'p' && [41, 46, 17, 22].includes(m.to) && Math.abs(m.to - m.from) === 8) return 'it makes room for the bishop on the long diagonal';
+  if (t === 'p' && [26, 34].includes(m.to)) return 'it fights for the center from the side';
   if (t === 'p' && [27, 28, 35, 36].includes(m.to)) return 'it takes space in the center';
   if (t === 'r' && !ns.board.some((p, i) => (i & 7) === (m.to & 7) && p && p.toLowerCase() === 'p' && i !== m.to)) return 'it puts a rook on an open file';
   return 'it improves your position';

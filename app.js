@@ -5,21 +5,24 @@ import { pieceSVG, SETS } from './pieces.js';
 import { analyse, clearQueue } from './engine.js';
 import { BOTS, COACHES, COACH_LINES, LEGACY, LEVELS, STYLE_NAMES, botMove, pick, line, moodFor, levelOf } from './bots.js';
 import { faceSVG } from './faces.js';
+import * as voice from './voice.js';
+import { moveTactics, ideaHint, puzzleThemes, THEMES } from './themes.js';
 import * as A from './analysis.js';
 import { openingName } from './openings.js';
 import * as snd from './sound.js';
 import { PUZZLES } from './puzzles-data.js';
 import { reviewView, historyView, statsView } from './review.js';
-import { puzzleView } from './puzzles.js';
+import { puzzleView, learnView } from './puzzles.js';
 
 /* ---------- saved data ---------- */
 const KEY = 'cxa1';
-const DEF = { set: { theme: 'green', pieces: 'classic', sound: true, coords: true, dots: true, anim: true, autoQ: false, premove: true, evalbar: false }, rating: 800, ratingHist: [], puzRating: 800, puzHist: [], games: [], cur: null, solved: {}, rushBest: 0, daily: {}, pick: { bot: 'olive', color: 'w', tc: 'none', coach: 'coach_sam', coachLevel: 800 } };
+const DEF = { set: { theme: 'green', pieces: 'classic', sound: true, coords: true, dots: true, anim: true, autoQ: false, premove: true, evalbar: false, voice: true, accents: true }, rating: 800, ratingHist: [], puzRating: 800, puzHist: [], games: [], cur: null, solved: {}, rushBest: 0, daily: {}, themeDone: {}, pick: { bot: 'olive', color: 'w', tc: 'none', coach: 'coach_sam', coachLevel: 800 } };
 export let D = (() => { try { const d = JSON.parse(localStorage.getItem(KEY)); return d ? { ...DEF, ...d, set: { ...DEF.set, ...d.set }, pick: { ...DEF.pick, ...d.pick } } : structuredClone(DEF) } catch (e) { return structuredClone(DEF) } })();
 let saveT = null;
 export const save = (now) => { clearTimeout(saveT); const f = () => { try { localStorage.setItem(KEY, JSON.stringify(D)) } catch (e) { toast('Storage is full') } }; now ? f() : (saveT = setTimeout(f, 300)) };
 addEventListener('pagehide', () => save(true));
 snd.setSound(D.set.sound);
+voice.setVoice({ on: D.set.voice, accents: D.set.accents });
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => { });
 
 /* ---------- helpers ---------- */
@@ -55,7 +58,7 @@ let view = 'home', cleanup = null;
 export function go(v, arg) {
   if (cleanup) { try { cleanup() } catch (e) { } cleanup = null }
   view = v; window.scrollTo(0, 0); document.body.className = themeClass();
-  const V = { home, bots: pickBot, coach: pickCoach, game: gameView, settings, review: a => reviewView(ctx, a), history: () => historyView(ctx), stats: () => statsView(ctx), puzzles: a => puzzleView(ctx, a || 'rated') }[v];
+  const V = { home, bots: pickBot, coach: pickCoach, game: gameView, settings, review: a => reviewView(ctx, a), history: () => historyView(ctx), stats: () => statsView(ctx), puzzles: a => puzzleView(ctx, a || 'rated'), learn: () => learnView(ctx) }[v];
   cleanup = V(arg) || null;
 }
 const top = (title, back = 'home', right = '') => `<div class="top">${back ? `<button class="iconbtn" data-go="${back}" aria-label="Back">‹</button>` : ''}<h1>${title}</h1>${right}</div>`;
@@ -72,6 +75,7 @@ function home() {
       <button class="mi ${cur ? '' : 'big'}" data-go="bots"><span class="ic trio">${['diego', 'sofia', 'kofi'].map(id => av(botById(id), '', 'smile')).join('')}</span><div><b>Play Bots</b><span>${BOTS.length - 1} people from 250 to 2850, plus Stockfish</span></div></button>
       <button class="mi" data-go="coach"><span class="ic">${av(COACHES[0], '', 'smile')}</span><div><b>Play with a Coach</b><span>They explain every move and help you get better</span></div></button>
       <button class="mi" data-go="puzzles" data-arg="rated"><span class="ic">🧩</span><div><b>Puzzles</b><span>Rated ${D.puzRating} · ${PUZZLES.length} puzzles</span></div></button>
+      <button class="mi" data-go="learn"><span class="ic">📚</span><div><b>Lessons</b><span>Forks, pins, skewers, mates… learn them, then practice</span></div></button>
       <button class="mi" data-go="puzzles" data-arg="rush"><span class="ic">⚡</span><div><b>Puzzle Rush</b><span>3 minutes, 3 strikes${D.rushBest ? ` · best ${D.rushBest}` : ''}</span></div></button>
       <button class="mi" data-go="puzzles" data-arg="daily"><span class="ic">📅</span><div><b>Daily Puzzle</b><span>${dailyDone ? 'Solved today ✅' : 'A new one every day'}</span></div></button>
       <button class="mi" data-go="puzzles" data-arg="mistakes"><span class="ic">🎯</span><div><b>Learn From Your Mistakes</b><span>Puzzles from your own reviewed games</span></div></button>
@@ -143,7 +147,7 @@ function gameView() {
   let gd = gameData(G.moves), board, alive = true, thinking = false, clockT = null, turnStart = Date.now(), lastTick = 0;
   let viewPly = null; // null = live position; a number = looking back at an earlier move
   let say = null;     // { who, text, label, acts:[[id,label]] }
-  let mood = 'neutral', moodT = null; // the opponent's face
+  let mood = 'neutral', moodT = null, spoken = null; // the opponent's face, and the last thing said out loud
   const setMood = (m, ms) => { clearTimeout(moodT); mood = m; refreshFace(); if (ms) moodT = setTimeout(() => { mood = moodFor(opp, G._botEval); refreshFace() }, ms) };
   const refreshFace = () => { const a = $('#topBar .av'), b = $('#say .bubble.op .av'); const h = opp.face ? faceSVG(opp.face, thinking && mood === 'neutral' ? 'think' : mood) : null; if (h) { if (a) a.innerHTML = h; if (b) b.innerHTML = h } const t = $('#topBar .thk'); if (t) t.hidden = !thinking };
   let hintStep = 0, hintUci = null, paused = false;
@@ -181,8 +185,9 @@ function gameView() {
   function bubble() {
     const el = $('#say'); if (!say) { el.innerHTML = ''; return }
     const w = say.who === 'hint' ? { emoji: '💡', color: '#5c8bb0' } : opp, L = say.label && A.LABELS[say.label];
-    el.innerHTML = `<div class="bubble ${say.who === 'hint' ? '' : 'op'}">${say.who === 'hint' ? av(w) : av(w, '', mood)}<div class="txt">${L ? `<b class="lbl" style="color:${L.c}">${L.g} ${L.n}</b><br>` : ''}${say.text}${say.acts ? `<div class="acts">${say.acts.map(([id, l, cls]) => `<button class="btn sm ${cls || 'sec'}" data-act="${id}">${l}</button>`).join('')}</div>` : ''}</div></div>`;
+    el.innerHTML = `<div class="bubble ${say.who === 'hint' ? '' : 'op'}">${say.who === 'hint' ? av(w) : av(w, '', mood)}<div class="txt">${say.pre || ''}${L ? `<b class="lbl" style="color:${L.c}">${L.g} ${L.n}</b><br>` : ''}${say.text}${say.acts ? `<div class="acts">${say.acts.map(([id, l, cls]) => `<button class="btn sm ${cls || 'sec'}" data-act="${id}">${l}</button>`).join('')}</div>` : ''}</div></div>`;
     el.querySelectorAll('[data-act]').forEach(b => b.onclick = () => act(b.dataset.act));
+    if (say !== spoken) { spoken = say; if (!say.quiet) voice.say(say.speak || ((L && say.who === 'opp' && coach ? L.n + '. ' : '') + say.text), say.who === 'hint' ? null : opp, { interrupt: !say.queue }) }
   }
   function controls() {
     const n = G.moves.length;
@@ -289,37 +294,63 @@ function gameView() {
     return G.ev[ply];
   }
   function prepCoach() { if (myTurn()) evAt(G.moves.length).catch(() => { }) } // think ahead while you think
+  // The coach looks at every move you make: a label like chess.com, what it does, and a better idea if there was one.
   async function coachCheck(ply) {
     paused = true; board.setInteractive(null);
-    say = { who: 'opp', text: '<span class="dim">Hmm, let me look at that…</span>' }; bubble();
+    say = { who: 'opp', text: '<span class="dim">Hmm, let me look at that…</span>', quiet: true }; bubble();
     try {
       const before = await evAt(ply), after = await evAt(ply + 1, 12);
-      if (!alive || G !== D.cur) return;
+      if (!alive || G !== D.cur || G.moves.length !== ply + 1) return;
       const ev = G.ev, gr = A.gradeMove(gd, ply, ev, ply > 0 && ev[ply - 1] && ev[ply] ? (A.gradeMove(gd, ply - 1, ev) || {}).label : null);
       if (!gr || !before || !after) { paused = false; say = null; show(false); botTurn(); return }
-      if (A.BAD.has(gr.label) && gr.label !== 'inaccuracy' || (gr.label === 'inaccuracy' && G.oppId !== 'coach_rex' && gr.drop >= 7)) {
-        snd.play('bad');
+      const st = gd.states[ply], mv = gd.moves[ply], L = A.LABELS[gr.label], rex = G.oppId === 'coach_rex', maya = G.oppId === 'coach_maya';
+      G._badge = { sq: mv.to, color: L.c, html: L.g.length > 2 ? L.g.slice(0, 2) : L.g };
+      board.setBadges([G._badge]);
+      const did = capital(A.whatItDoes(st, mv)), bestM = gr.best ? R.uciToMove(st, gr.best) : null, bestSan = gr.best ? A.sanOf(st, gr.best) : '';
+      G._pre = `<div class="pre"><b style="color:${L.c}">${L.g} ${L.n}</b> <span class="dim">${esc(gd.sans[ply])}</span></div>`;
+      if (A.BAD.has(gr.label) && gr.label !== 'inaccuracy' || (gr.label === 'inaccuracy' && !rex && gr.drop >= 7)) {
+        snd.play('bad'); setMood('worried');
         say = { who: 'opp', label: gr.label, text: `${esc(pick(lines.oops))} ${esc(A.explainMistake(gd, ply, ev, 'me'))}`, acts: [['retry', '↩️ Try again', ''], ['showbest', '👀 Show me'], ['keep', 'Keep playing ▶']] };
         G._lastBad = { ply, best: gr.best };
         show(false); return;
       }
       paused = false;
-      if (gr.label === 'brilliant' || gr.label === 'great') { snd.play('good'); say = { who: 'opp', label: gr.label, text: esc(pick(lines[gr.label])) } }
-      else if (gr.label === 'best' || gr.label === 'excellent') say = Math.random() < (G.oppId === 'coach_rex' ? .2 : .45) ? { who: 'opp', label: gr.label, text: `${esc(pick(lines.best))} ${G.oppId === 'coach_maya' ? esc(capital(A.whatItDoes(gd.states[ply], gd.moves[ply]))) + '.' : ''}` } : null;
-      else if (gr.label === 'book') { const op = openingName(gd.sans); say = { who: 'opp', label: 'book', text: op ? `That’s a well-known move in the <b>${esc(op.name)}</b>.` : 'A good opening move.' } }
-      else say = { who: 'opp', label: gr.label, text: esc(pick(lines.good)) + (gr.best ? ` <span class="dim">(${esc(A.sanOf(gd.states[ply], gr.best))} was a bit better.)</span>` : '') };
+      let text;
+      if (gr.label === 'brilliant' || gr.label === 'great') { snd.play('good'); setMood('happy', 2500); text = `${esc(pick(lines[gr.label]))} ${esc(did)}.` }
+      else if (gr.label === 'best' || gr.label === 'excellent') { setMood('smile'); text = rex ? esc(pick(lines.best)) : `${esc(pick(lines.best))} ${esc(did)}.` }
+      else if (gr.label === 'book') { const op = openingName(gd.sans); text = op ? `That’s book: a well-known move in the <b>${esc(op.name)}</b>.${maya || ply < 4 ? ` ${esc(did)}.` : ''}` : `A good opening move. ${esc(did)}.` }
+      else if (gr.label === 'inaccuracy') { setMood('neutral'); G._lastBad = { ply, best: gr.best }; text = esc(A.explainMistake(gd, ply, ev, 'me')); say = { who: 'opp', label: gr.label, text, acts: [['retry', '↩️ Try the better move', '']] }; show(false); botTurn(); return }
+      else text = `${esc(pick(lines.good))} ${esc(did)}.${bestM ? ` <span class="dim">${esc(bestSan)} was a little better: ${esc(A.whatItDoes(st, bestM))}.</span>` : ''}`;
+      say = { who: 'opp', label: gr.label, text };
       show(false); botTurn();
     } catch (e) { console.warn(e); paused = false; show(false); botTurn() }
   }
-  function coachAfterBot(m) {
-    const s = S(), prev = gd.states[gd.states.length - 2], threats = A.threatsAgainst(s, G.my), before = A.threatsAgainst({ ...prev, turn: G.my }, G.my);
-    const fresh = threats.filter(t => !before.some(b => b.sq === t.sq));
-    if (R.inCheck(s, G.my)) { say = { who: 'opp', text: `Check! Your king is under attack. You must move it, block, or capture the checking piece.` }; bubble(); return }
-    if (fresh.length) { const t = fresh[0]; say = { who: 'opp', text: `⚠️ Watch out: your ${t.piece} on ${R.sqName(t.sq)} is under attack.` }; board.setHighlights({ [t.sq]: 'bad' }); bubble(); return }
-    if (G.oppId === 'coach_maya' || Math.random() < .3) {
-      const what = A.whatItDoes(prev, m).replace(/your/g, 'my').replace(/their/g, 'your');
-      say = { who: 'opp', text: `I played ${esc(gd.sans[gd.sans.length - 1])}: ${esc(what)}.` }; bubble();
+  // After the coach moves: what that move was about, what to watch out for, and something to think about.
+  async function coachAfterBot(m) {
+    const s = S(), prev = gd.states[gd.states.length - 2], ply = G.moves.length, theirSan = gd.sans[gd.sans.length - 1];
+    const rex = G.oppId === 'coach_rex', maya = G.oppId === 'coach_maya', parts = [];
+    board.setBadges([]);
+    const threats = A.threatsAgainst(s, G.my), before = A.threatsAgainst({ ...prev, turn: G.my }, G.my), fresh = threats.filter(t => !before.some(b => b.sq === t.sq));
+    if (R.inCheck(s, G.my)) parts.push(`${esc(theirSan)} is check! You have to move your king, block, or take the checking piece.`);
+    else if (fresh.length) { const t = fresh[0]; parts.push(`⚠️ ${esc(theirSan)} attacks your ${t.piece} on ${R.sqName(t.sq)}. Move it or protect it.`); board.setHighlights({ [t.sq]: 'bad' }) }
+    else if (maya || Math.random() < (rex ? .25 : .55)) { const what = A.whatItDoes(prev, m).replace(/\byour\b/g, '§').replace(/\btheir\b/g, 'your').replace(/§/g, 'my'); parts.push(`I played ${esc(theirSan)}: ${esc(what)}.`) }
+    say = { who: 'opp', pre: G._pre, text: parts.join(' ') || '<span class="dim">Your move.</span>', queue: true, quiet: !parts.length }; bubble();
+    // something to think about, without giving the move away
+    let e = null; try { e = await evAt(ply) } catch (err) { }
+    if (!alive || G !== D.cur || G.moves.length !== ply || !e || !e.lines[0]) return;
+    const l0 = e.lines[0], l1 = e.lines[1], bm = R.uciToMove(s, l0.uci), tac = bm ? moveTactics(s, bm).map(x => x.theme) : [];
+    let tip = '';
+    if (l0.mate != null && l0.mate > 0) tip = rex ? 'There’s a checkmate on the board. Find it.' : `There’s a checkmate${l0.mate <= 3 ? ` in ${l0.mate}` : ''} here! Look at every check.`;
+    else if (tac.length && l0.cp > 150) { const t = ['fork', 'skewer', 'pin', 'discoveredAttack', 'doubleCheck', 'hangingPiece', 'promotion', 'sacrifice'].find(x => tac.includes(x)); if (t) tip = rex ? 'There’s a tactic here. Find it.' : `💡 ${THEMES[t].hint}` }
+    else if (l1 && l0.cp - l1.cp > 180 && l0.cp < 400 && !rex) tip = 'Careful here: one move is much better than the rest. Take your time.';
+    if (!tip && ply < 22 && Math.random() < (maya ? .7 : rex ? .2 : .45)) {
+      const home = G.my === 'w' ? 7 : 0, minors = s.board.filter((p, i) => p && (i >> 3) === home && (G.my === 'w' ? 'NB' : 'nb').includes(p)).length, kHome = R.findKing(s.board, G.my) === (G.my === 'w' ? 60 : 4);
+      if (minors >= 2) tip = 'Tip: get your knights and bishops out before moving the same piece twice.';
+      else if (kHome && ply > 10) tip = 'Tip: castle soon to keep your king safe.';
     }
+    if (!tip && Math.random() < (maya ? .35 : .15)) tip = l0.cp > 250 ? 'You’re ahead. Trade pieces to make it easier to win.' : l0.cp < -250 ? 'You’re behind, but stay active. Look for checks and threats.' : '';
+    if (!tip) return;
+    say = { who: 'opp', pre: G._pre, text: (parts.length ? parts.join(' ') + '<br>' : '') + esc(tip), speak: tip, queue: true }; bubble();
   }
   const capital = s => s ? s[0].toUpperCase() + s.slice(1) : s;
   // ----- buttons -----
@@ -346,11 +377,13 @@ function gameView() {
       hintStep++;
       if (!hintUci) { const ev = await evAt(G.moves.length, 14); hintUci = ev && ev.best }
       const h = hintUci && A.hintFor(S(), hintUci); if (!h) return;
-      if (hintStep === 1) { say = { who: coach ? 'opp' : 'hint', text: `💡 Look at your <b>${h.piece}</b>.` }; board.setHighlights({ [h.from]: 'hint' }) }
-      else { say = { who: coach ? 'opp' : 'hint', text: `💡 Try <b>${esc(h.san)}</b>: ${esc(h.what)}.` }; board.setArrows([{ from: h.from, to: h.to, color: 'b' }]) }
+      const who = coach ? 'opp' : 'hint';
+      if (hintStep === 1) { const fen = R.toFEN(S()), th = puzzleThemes(fen, [hintUci]).themes, tactic = th.some(x => !['quietMove', 'advantage', 'endgame'].includes(x)); say = { who, text: `💡 ${esc(tactic ? ideaHint(fen, [hintUci]) : 'No big tactic here. Look for your least active piece, and think about what your opponent wants to do next.')}` } }
+      else if (hintStep === 2) { say = { who, text: `💡 Look at your <b>${h.piece}</b>.` }; board.setHighlights({ [h.from]: 'hint' }) }
+      else { say = { who, text: `💡 Try <b>${esc(h.san)}</b>: ${esc(h.what)}.` }; board.setArrows([{ from: h.from, to: h.to, color: 'b' }]) }
       bubble(); controls(); return;
     }
-    if (id === 'retry') { const b = G._lastBad; if (!b) return; while (G.moves.length > b.ply) { G.moves.pop(); gd.states.pop(); gd.sans.pop(); gd.moves.pop() } paused = false; say = { who: 'opp', text: 'Okay, find a better move. Take your time. 🙂' }; turnStart = Date.now(); save(); show(true); prepCoach(); return }
+    if (id === 'retry') { const b = G._lastBad; if (!b) return; while (G.moves.length > b.ply) { G.moves.pop(); gd.states.pop(); gd.sans.pop(); gd.moves.pop() } paused = false; board.setBadges([]); say = { who: 'opp', text: 'Okay, find a better move. Take your time. 🙂' }; turnStart = Date.now(); save(); show(true); prepCoach(); return }
     if (id === 'showbest') { const b = G._lastBad; if (!b) return; const s0 = gd.states[b.ply], m = R.uciToMove(s0, b.best); if (m) { viewPly = b.ply; show(false); board.setArrows([{ from: m.from, to: m.to, color: 'g' }]); say = { ...say, text: say.text + `<br><br>👀 The best move was <b>${esc(A.sanOf(s0, b.best))}</b>: ${esc(A.whatItDoes(s0, m))}.`, acts: [['retry', '↩️ Try it'], ['keep', 'Keep my move ▶']] }; bubble() } return }
     if (id === 'keep') { paused = false; viewPly = null; say = null; show(false); botTurn(); return }
     if (id === 'review') { go('review', G.id); return }
@@ -403,7 +436,7 @@ function gameView() {
   if (!myTurn()) setTimeout(botTurn, 600); else if (coach) prepCoach();
   const onKey = e => { if (e.key === 'ArrowLeft') $('[data-nav="1"]').click(); if (e.key === 'ArrowRight') $('[data-nav="2"]').click() };
   addEventListener('keydown', onKey);
-  return () => { alive = false; clearInterval(clockT); clearTimeout(moodT); removeEventListener('keydown', onKey); clearQueue('coach'); clearQueue('bot') };
+  return () => { alive = false; voice.stop(); clearInterval(clockT); clearTimeout(moodT); removeEventListener('keydown', onKey); clearQueue('coach'); clearQueue('bot') };
 }
 
 /* ---------- settings ---------- */
@@ -418,10 +451,16 @@ function settings() {
       <div class="card" style="margin-top:1rem;padding:.2rem .9rem">
         ${tog('sound', 'Sounds')}${tog('anim', 'Slide pieces')}${tog('dots', 'Show legal moves')}${tog('coords', 'Coordinates')}${tog('premove', 'Premoves', 'Make your next move while the bot is thinking')}${tog('autoQ', 'Always promote to queen')}
       </div>
+      <h2>Voices</h2><div class="card" style="padding:.2rem .9rem">
+        ${tog('voice', 'Voices', 'Opponents and coaches talk out loud')}${tog('accents', 'Accents', 'People sound like they’re from their country')}
+        <div class="set"><div><b>Test it</b><small>${voice.supported ? `${voice.count()} English voices on this device` : 'This browser can’t speak'}</small></div><button class="btn sm sec" id="vtest">🔊 Play</button></div>
+        <p class="mute" style="font-size:.8rem;margin:.2rem 0 .7rem">Free, built into your phone, and works offline. For much better voices on iPhone: <b>Settings → Accessibility → Spoken Content → Voices → English</b>, and download a few voices marked <b>Enhanced</b> or <b>Premium</b>. The app picks them up automatically.</p>
+      </div>
       <h2>Your data</h2><div class="card"><p class="mute" style="margin:0 0 .6rem;font-size:.88rem">Everything is saved on this device. Make a backup now and then so you never lose your games and rating.</p>
         <div style="display:flex;gap:.5rem;flex-wrap:wrap"><button class="btn sm" id="exp">💾 Save backup</button><button class="btn sm sec" id="imp">📂 Load backup</button><button class="btn sm red" id="reset">Reset everything</button></div><input type="file" id="file" accept=".json" hidden></div></div>`;
     bindGo();
-    app.querySelectorAll('[data-tog]').forEach(b => b.onclick = () => { S[b.dataset.tog] = !S[b.dataset.tog]; snd.setSound(S.sound); save(); draw() });
+    app.querySelectorAll('[data-tog]').forEach(b => b.onclick = () => { S[b.dataset.tog] = !S[b.dataset.tog]; snd.setSound(S.sound); voice.setVoice({ on: S.voice, accents: S.accents }); save(); draw() });
+    if ($('#vtest')) $('#vtest').onclick = () => { const p = pick(BOTS.filter(b => !b.engine)); voice.say(`Hi, I'm ${p.name}${p.from ? ` from ${p.from.split(',').pop().trim()}` : ''}. ${line(p, 'hi')}`, p) };
     app.querySelectorAll('[data-th]').forEach(b => b.onclick = () => { S.theme = b.dataset.th; document.body.className = themeClass(); save(); draw() });
     app.querySelectorAll('[data-ps]').forEach(b => b.onclick = () => { S.pieces = b.dataset.ps; save(); draw() });
     $('#exp').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(D)], { type: 'application/json' })); a.download = `chess-backup-${new Date().toISOString().slice(0, 10)}.json`; a.click() };

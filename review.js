@@ -6,7 +6,9 @@ import { openingName } from './openings.js';
 import * as snd from './sound.js';
 
 import { COACH_PEOPLE } from './people.js';
-const COACH = { name: 'Coach Maya', face: COACH_PEOPLE[1].face };
+import * as voice from './voice.js';
+let spokenText = '';
+const COACH = { ...COACH_PEOPLE[1], name: 'Coach Maya' };
 const RES = (g) => g.result === '1/2-1/2' ? ['d', 'Draw'] : (g.result === '1-0') === (g.my === 'w') ? ['w', 'Win'] : ['l', 'Loss'];
 const when = t => { const d = new Date(t), now = new Date(); return d.toDateString() === now.toDateString() ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : d.toLocaleDateString([], { month: 'short', day: 'numeric' }) };
 
@@ -144,6 +146,7 @@ export function reviewView(ctx, id) {
     if (retry && retry.done) acts.push(['back', 'Back to review']);
     $('#say').innerHTML = `<div class="bubble">${ctx.av(COACH)}<div class="txt">${text}${acts.length ? `<div class="acts">${acts.map(([k, l]) => `<button class="btn sm sec" data-ra="${k}">${l}</button>`).join('')}</div>` : ''}</div></div>`;
     $('#say').querySelectorAll('[data-ra]').forEach(b => b.onclick = () => ra(b.dataset.ra));
+    if (text !== spokenText && !/Hang on/.test(text)) { spokenText = text; voice.say(text, COACH) }
     $('#nav').innerHTML = `<button data-n="0">⏮</button><button data-n="1">◀</button><button data-n="2">▶</button><button data-n="3">⏭</button>`;
     $('#nav').querySelectorAll('[data-n]').forEach(b => b.onclick = () => { const k = +b.dataset.n; cur = k === 0 ? 0 : k === 1 ? Math.max(0, cur - 1) : k === 2 ? Math.min(n, cur + 1) : n; retry = null; showBest = false; if (k === 2 && cur > 0) moveSound(cur - 1); show() });
     const km = keyMoves(), nextKey = km.find(p => p > cur);
@@ -177,7 +180,7 @@ export function reviewView(ctx, id) {
   if (missing.length) run(); else finishUp();
   const onKey = e => { if (e.key === 'ArrowLeft') $('[data-n="1"]').click(); if (e.key === 'ArrowRight') $('[data-n="2"]').click() };
   addEventListener('keydown', onKey);
-  return () => { alive = false; clearQueue('review'); removeEventListener('keydown', onKey); save(true) };
+  return () => { alive = false; voice.stop(); spokenText = ''; clearQueue('review'); removeEventListener('keydown', onKey); save(true) };
 }
 
 function ratingSVG(hist, color = '#81b64c') {
