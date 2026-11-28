@@ -1,0 +1,11 @@
+{
+  // Chess Coach is served as static files. One small script answers /push for Family Game Night's notifications.
+  "name": "chess-coach",
+  "main": "relay/push-relay.js",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./",
+    "binding": "ASSETS",
+    "run_worker_first": ["/push"]
+  }
+}

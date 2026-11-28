@@ -1,0 +1,6 @@
+.git
+.github
+relay
+wrangler.jsonc
+.assetsignore
+node_modules
